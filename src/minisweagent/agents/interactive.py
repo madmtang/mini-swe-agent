@@ -103,7 +103,7 @@ class InteractiveAgent(DefaultAgent):
         try:
             self._ask_confirmation_or_interrupt(commands)
             for action in actions:
-                outputs.append(self.env.execute(action))
+                outputs.append(self._execute_action_with_tool_policy(message, action))
         except Submitted as e:
             self._check_for_new_task_or_submit(e)
         finally:
