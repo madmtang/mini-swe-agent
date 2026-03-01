@@ -102,6 +102,7 @@ agent:
   cost_limit: 3.
   mode: confirm
 environment:
+  blocked_tools: ["grep", "sed"]
   env:
     PAGER: cat
     MANPAGER: cat

@@ -12,7 +12,11 @@ from pydantic import BaseModel
 
 from minisweagent import Environment, Model, __version__
 from minisweagent.exceptions import InterruptAgentFlow, LimitsExceeded
+from minisweagent.utils.bash_parser import extract_executables
 from minisweagent.utils.serialize import recursive_merge
+
+BLOCKED_TOOL_MESSAGE = "The tool is not available in this machine."
+BLOCKED_TOOL_RETURNCODE = 127
 
 
 class AgentConfig(BaseModel):
@@ -118,8 +122,49 @@ class DefaultAgent:
 
     def execute_actions(self, message: dict) -> list[dict]:
         """Execute actions in message, add observation messages, return them."""
-        outputs = [self.env.execute(action) for action in message.get("extra", {}).get("actions", [])]
+        outputs = [
+            self._execute_action_with_tool_policy(message, action)
+            for action in message.get("extra", {}).get("actions", [])
+        ]
         return self.add_messages(*self.model.format_observation_messages(message, outputs, self.get_template_vars()))
+
+    def _get_blocked_tools(self) -> set[str]:
+        config = getattr(self.env, "config", None)
+        blocked_tools = getattr(config, "blocked_tools", []) or []
+        return {tool for tool in blocked_tools if isinstance(tool, str)}
+
+    def _should_screen_action(self, message: dict) -> bool:
+        return True
+
+    def _execute_action_with_tool_policy(self, message: dict, action: dict) -> dict:
+        blocked_tools = self._get_blocked_tools()
+        if not blocked_tools or not self._should_screen_action(message):
+            return self.env.execute(action)
+
+        command = action.get("command", "")
+        blocked_matches = self._get_blocked_matches(command, blocked_tools)
+        if not blocked_matches:
+            return self.env.execute(action)
+
+        return {
+            "output": BLOCKED_TOOL_MESSAGE,
+            "returncode": BLOCKED_TOOL_RETURNCODE,
+            "exception_info": BLOCKED_TOOL_MESSAGE,
+            "extra": {
+                "blocked_by_policy": True,
+                "blocked_tools": blocked_matches,
+                "requested_command": command,
+            },
+        }
+
+    def _get_blocked_matches(self, command: str, blocked_tools: set[str]) -> list[str]:
+        matches: list[str] = []
+        seen: set[str] = set()
+        for executable in extract_executables(command):
+            if executable in blocked_tools and executable not in seen:
+                matches.append(executable)
+                seen.add(executable)
+        return matches
 
     def serialize(self, *extra_dicts) -> dict:
         """Serialize agent state to a json-compatible nested dictionary for saving."""
