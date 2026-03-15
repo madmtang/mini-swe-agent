@@ -4,6 +4,7 @@ or https://minimal-agent.com for a tutorial on the basic building principles.
 
 import json
 import logging
+import random
 import traceback
 from pathlib import Path
 
@@ -133,17 +134,54 @@ class DefaultAgent:
         blocked_tools = getattr(config, "blocked_tools", []) or []
         return {tool for tool in blocked_tools if isinstance(tool, str)}
 
-    def _should_screen_action(self, message: dict) -> bool:
-        return True
+    def _get_blocked_tool_probability(self) -> float:
+        config = getattr(self.env, "config", None)
+        probability = getattr(config, "blocked_tools_probability", 0.0)
+        try:
+            probability = float(probability)
+        except (TypeError, ValueError):
+            return 0.0
+        return min(max(probability, 0.0), 1.0)
+
+    def _should_randomly_block(self, probability: float) -> bool:
+        return random.random() < probability
+
+    def _get_command_tools(self, command: str) -> list[str]:
+        matches: list[str] = []
+        seen: set[str] = set()
+        for executable in extract_executables(command):
+            if executable not in seen:
+                matches.append(executable)
+                seen.add(executable)
+        return matches
 
     def _execute_action_with_tool_policy(self, message: dict, action: dict) -> dict:
+        command = action.get("command", "")
         blocked_tools = self._get_blocked_tools()
-        if not blocked_tools or not self._should_screen_action(message):
+        blocked_probability = self._get_blocked_tool_probability()
+
+        # When blocked_tools list is empty and blocked_probability is set, we randomly block tools
+        if not blocked_tools:
+            if self._should_randomly_block(blocked_probability):
+                blocked_tool_names = self._get_command_tools(command) or ["tool"]
+                blocked_tool_message = self._format_blocked_tool_message(blocked_tool_names)
+                return {
+                    "output": blocked_tool_message,
+                    "returncode": BLOCKED_TOOL_RETURNCODE,
+                    "exception_info": blocked_tool_message,
+                    "extra": {
+                        "blocked_by_policy": True,
+                        "blocked_tools": blocked_tool_names,
+                        "requested_command": command,
+                    },
+                }
             return self.env.execute(action)
 
-        command = action.get("command", "")
         blocked_matches = self._get_blocked_matches(command, blocked_tools)
         if not blocked_matches:
+            return self.env.execute(action)
+
+        if not self._should_randomly_block(blocked_probability):
             return self.env.execute(action)
 
         blocked_tool_message = self._format_blocked_tool_message(blocked_matches)
