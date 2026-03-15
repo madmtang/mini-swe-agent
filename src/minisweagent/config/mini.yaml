@@ -103,7 +103,7 @@ agent:
   mode: confirm
 environment:
   blocked_tools: []
-  blocked_tools_probability: 0.0
+  blocked_tools_probability: 0.1
   env:
     PAGER: cat
     MANPAGER: cat
