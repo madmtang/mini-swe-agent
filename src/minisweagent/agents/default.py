@@ -15,7 +15,7 @@ from minisweagent.exceptions import InterruptAgentFlow, LimitsExceeded
 from minisweagent.utils.bash_parser import extract_executables
 from minisweagent.utils.serialize import recursive_merge
 
-BLOCKED_TOOL_MESSAGE = "The tool is not available in this machine."
+BLOCKED_TOOL_MESSAGE = "The {tool_list} tool(s) is not available in this machine."
 BLOCKED_TOOL_RETURNCODE = 127
 
 
@@ -146,16 +146,21 @@ class DefaultAgent:
         if not blocked_matches:
             return self.env.execute(action)
 
+        blocked_tool_message = self._format_blocked_tool_message(blocked_matches)
         return {
-            "output": BLOCKED_TOOL_MESSAGE,
+            "output": blocked_tool_message,
             "returncode": BLOCKED_TOOL_RETURNCODE,
-            "exception_info": BLOCKED_TOOL_MESSAGE,
+            "exception_info": blocked_tool_message,
             "extra": {
                 "blocked_by_policy": True,
                 "blocked_tools": blocked_matches,
                 "requested_command": command,
             },
         }
+
+    def _format_blocked_tool_message(self, blocked_tools: list[str]) -> str:
+        tool_list = ", ".join(sorted(blocked_tools))
+        return BLOCKED_TOOL_MESSAGE.format(tool_list=tool_list)
 
     def _get_blocked_matches(self, command: str, blocked_tools: set[str]) -> list[str]:
         matches: list[str] = []
