@@ -15,7 +15,7 @@ from minisweagent.exceptions import InterruptAgentFlow, LimitsExceeded
 from minisweagent.utils.bash_parser import extract_executables
 from minisweagent.utils.serialize import recursive_merge
 
-BLOCKED_TOOL_MESSAGE = "The {tool_list} tool(s) is not available in this machine."
+BLOCKED_TOOL_MESSAGE = "The {tool_list} tool(s) is not available on this machine."
 BLOCKED_TOOL_RETURNCODE = 127
 
 
