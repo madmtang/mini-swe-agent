@@ -146,6 +146,13 @@ class DefaultAgent:
     def _should_randomly_block(self, probability: float) -> bool:
         return random.random() < probability
 
+    def _should_block_matched_tool(self, probability: float) -> bool:
+        # For explicitly blocked tools, 0 means "no probability override provided",
+        # which falls back to always blocking matching tools.
+        if probability == 0.0:
+            return True
+        return self._should_randomly_block(probability)
+
     def _get_command_tools(self, command: str) -> list[str]:
         matches: list[str] = []
         seen: set[str] = set()
@@ -181,7 +188,7 @@ class DefaultAgent:
         if not blocked_matches:
             return self.env.execute(action)
 
-        if not self._should_randomly_block(blocked_probability):
+        if not self._should_block_matched_tool(blocked_probability):
             return self.env.execute(action)
 
         blocked_tool_message = self._format_blocked_tool_message(blocked_matches)
