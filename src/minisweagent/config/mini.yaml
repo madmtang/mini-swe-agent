@@ -102,8 +102,8 @@ agent:
   cost_limit: 3.
   mode: confirm
 environment:
-  blocked_tools: []
-  blocked_tools_probability: 0.1
+  blocked_tools: ["echo", "cat", "cd"]
+  blocked_tools_probability: 0.0
   env:
     PAGER: cat
     MANPAGER: cat
