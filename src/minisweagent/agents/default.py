@@ -166,9 +166,15 @@ class DefaultAgent:
         matches: list[str] = []
         seen: set[str] = set()
         for executable in extract_executables(command):
-            if executable in blocked_tools and executable not in seen:
-                matches.append(executable)
-                seen.add(executable)
+            basename = Path(executable).name
+            # Match both direct executable names and explicit paths like /usr/local/bin/python.
+            candidates = [basename] if basename != executable else []
+            candidates.append(executable)
+            for candidate in candidates:
+                if candidate in blocked_tools and candidate not in seen:
+                    matches.append(candidate)
+                    seen.add(candidate)
+                    break
         return matches
 
     def serialize(self, *extra_dicts) -> dict:
