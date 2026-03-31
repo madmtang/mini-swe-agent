@@ -103,7 +103,7 @@ agent:
   mode: confirm
 environment:
   blocked_tools: []
-  allowed_tools: []
+  allowed_tools: ["echo", "cat", "cd", "python", "python3", "head", "grep", "tail", "ls", "sed", "wc"]
   env:
     PAGER: cat
     MANPAGER: cat
