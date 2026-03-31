@@ -103,6 +103,7 @@ agent:
   mode: confirm
 environment:
   blocked_tools: []
+  allowed_tools: []
   env:
     PAGER: cat
     MANPAGER: cat

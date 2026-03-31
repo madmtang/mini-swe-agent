@@ -128,21 +128,31 @@ class DefaultAgent:
         ]
         return self.add_messages(*self.model.format_observation_messages(message, outputs, self.get_template_vars()))
 
-    def _get_blocked_tools(self) -> set[str]:
+    def _get_tool_policy(self) -> tuple[set[str], set[str]]:
         config = getattr(self.env, "config", None)
         blocked_tools = getattr(config, "blocked_tools", []) or []
-        return {tool for tool in blocked_tools if isinstance(tool, str)}
+        allowed_tools = getattr(config, "allowed_tools", []) or []
+        blocked = {tool for tool in blocked_tools if isinstance(tool, str)}
+        allowed = {tool for tool in allowed_tools if isinstance(tool, str)}
+        if blocked and allowed:
+            msg = "Invalid configuration: blocked_tools and allowed_tools cannot both be non-empty."
+            raise ValueError(msg)
+        return blocked, allowed
 
     def _should_screen_action(self, message: dict) -> bool:
         return True
 
     def _execute_action_with_tool_policy(self, message: dict, action: dict) -> dict:
-        blocked_tools = self._get_blocked_tools()
-        if not blocked_tools or not self._should_screen_action(message):
+        blocked_tools, allowed_tools = self._get_tool_policy()
+        if (not blocked_tools and not allowed_tools) or not self._should_screen_action(message):
             return self.env.execute(action)
 
         command = action.get("command", "")
-        blocked_matches = self._get_blocked_matches(command, blocked_tools)
+        blocked_matches = (
+            self._get_disallowed_matches(command, allowed_tools)
+            if allowed_tools
+            else self._get_blocked_matches(command, blocked_tools)
+        )
         if not blocked_matches:
             return self.env.execute(action)
 
@@ -162,19 +172,37 @@ class DefaultAgent:
         tool_list = ", ".join(sorted(blocked_tools))
         return BLOCKED_TOOL_MESSAGE.format(tool_list=tool_list)
 
+    def _get_executable_candidates(self, executable: str) -> list[str]:
+        basename = Path(executable).name
+        candidates = [basename] if basename != executable else []
+        candidates.append(executable)
+        return candidates
+
     def _get_blocked_matches(self, command: str, blocked_tools: set[str]) -> list[str]:
         matches: list[str] = []
         seen: set[str] = set()
         for executable in extract_executables(command):
-            basename = Path(executable).name
             # Match both direct executable names and explicit paths like /usr/local/bin/python.
-            candidates = [basename] if basename != executable else []
-            candidates.append(executable)
+            candidates = self._get_executable_candidates(executable)
             for candidate in candidates:
                 if candidate in blocked_tools and candidate not in seen:
                     matches.append(candidate)
                     seen.add(candidate)
                     break
+        return matches
+
+    def _get_disallowed_matches(self, command: str, allowed_tools: set[str]) -> list[str]:
+        matches: list[str] = []
+        seen: set[str] = set()
+        for executable in extract_executables(command):
+            candidates = self._get_executable_candidates(executable)
+            if any(candidate in allowed_tools for candidate in candidates):
+                continue
+            # Prefer reporting the basename unless only an explicit path is available.
+            disallowed = next((candidate for candidate in candidates if candidate), executable)
+            if disallowed not in seen:
+                matches.append(disallowed)
+                seen.add(disallowed)
         return matches
 
     def serialize(self, *extra_dicts) -> dict:

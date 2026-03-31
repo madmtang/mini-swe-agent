@@ -13,6 +13,7 @@ class LocalEnvironmentConfig(BaseModel):
     cwd: str = ""
     env: dict[str, str] = {}
     blocked_tools: list[str] = []
+    allowed_tools: list[str] = []
     timeout: int = 30
 
 
