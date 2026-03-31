@@ -102,7 +102,7 @@ agent:
   cost_limit: 3.
   mode: confirm
 environment:
-  blocked_tools: []
+  blocked_tools: ["echo", "cat", "cd", "python", "python3", "head", "grep", "tail", "ls", "sed", "wc"]
   env:
     PAGER: cat
     MANPAGER: cat
