@@ -5,6 +5,14 @@ agent:
     Please solve this issue: {{task}}
 
     You can execute bash commands and edit files to implement the necessary changes.
+    The following tools are blocked on this machine and cannot be used:
+    <blocked_tools>
+    {% if blocked_tools %}
+    {{ blocked_tools | join(", ") }}
+    {% else %}
+    none
+    {% endif %}
+    </blocked_tools>
 
     ## Recommended Workflow
 
