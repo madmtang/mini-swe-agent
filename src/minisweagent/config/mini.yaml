@@ -4,7 +4,9 @@ agent:
   instance_template: |
     Please solve this issue: {{task}}
 
-    You can execute bash commands and edit files to implement the necessary changes.
+    You can execute bash commands and edit files to implement the necessary changes, but every task action must be performed exclusively via Python scripts: first write a Python file, then execute it with `python` or `python3`.
+    Direct shell commands are not allowed unless they invoke `python` or `python3`. Any bash command that does not start with `python` or `python3` must be rejected.
+    The only exception is the required final submission command `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`, which must still be issued exactly as specified when you are done.
 
     ## Recommended Workflow
 
@@ -36,16 +38,18 @@ agent:
 
     - Your response SHOULD include reasoning text explaining what you're doing
     - Your response MUST include AT LEAST ONE bash tool call
+    - Every action must be performed by first writing a Python file and then executing it with `python` or `python3`
+    - Direct shell commands are not allowed unless they invoke `python` or `python3`; reject any other bash command except the required final submission command `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
     - Directory or environment variable changes are not persistent. Every action is executed in a new subshell.
-    - However, you can prefix any action with `MY_ENV_VAR=MY_VALUE cd /path/to/working/dir && ...` or write/load environment variables from files
+    - However, because every action must run through `python` or `python3`, handle directory or environment setup inside the Python script you write and execute, or write/load environment variables from files
     - Submit your changes and finish your work by issuing the following command: `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`.
       Do not combine it with any other command. <important>After this command, you cannot continue working on this task.</important>
 
     Example of a CORRECT response:
     <example_response>
-    I need to understand the structure of the repository first. Let me check what files are in the current directory to get a better understanding of the codebase.
+    I need to understand the structure of the repository first. I will write a short Python script that lists the files in the current directory so I can inspect the codebase while following the Python-only execution rule.
 
-    [Makes bash tool call with {"command": "ls -la"} as arguments]
+    [Makes bash tool call with {"command": "python inspect_repo.py"} as arguments]
     </example_response>
 
     <system_information>
@@ -57,46 +61,54 @@ agent:
     ### Create a new file:
 
     ```bash
-    cat <<'EOF' > newfile.py
-    import numpy as np
-    hello = "world"
-    print(hello)
-    EOF
+    python write_newfile.py
     ```
 
-    ### Edit files with sed:
+    Example `write_newfile.py`:
 
-    {%- if system == "Darwin" -%}
-    <important>
-    You are on MacOS. For all the below examples, you need to use `sed -i ''` instead of `sed -i`.
-    </important>
-    {%- endif -%}
+    ```python
+    from pathlib import Path
+
+    Path("newfile.py").write_text("import numpy as np\nhello = 'world'\nprint(hello)\n")
+    ```
+
+    ### Edit files with Python:
 
     ```bash
-    # Replace all occurrences
-    sed -i 's/old_string/new_string/g' filename.py
+    python edit_file.py
+    ```
 
-    # Replace only first occurrence
-    sed -i 's/old_string/new_string/' filename.py
+    Example `edit_file.py`:
 
-    # Replace first occurrence on line 1
-    sed -i '1s/old_string/new_string/' filename.py
+    ```python
+    from pathlib import Path
 
-    # Replace all occurrences in lines 1-10
-    sed -i '1,10s/old_string/new_string/g' filename.py
+    path = Path("filename.py")
+    text = path.read_text()
+    text = text.replace("old_string", "new_string")
+    path.write_text(text)
     ```
 
     ### View file content:
 
     ```bash
-    # View specific lines with numbers
-    nl -ba filename.py | sed -n '10,20p'
+    python view_file.py
+    ```
+
+    Example `view_file.py`:
+
+    ```python
+    from pathlib import Path
+
+    for index, line in enumerate(Path("filename.py").read_text().splitlines(), start=1):
+        if 10 <= index <= 20:
+            print(f"{index:>6}\t{line}")
     ```
 
     ### Any other command you want to run
 
     ```bash
-    anything
+    python do_task.py
     ```
   step_limit: 0
   cost_limit: 3.
@@ -135,11 +147,11 @@ model:
 
     Here is general guidance on how to submit correct toolcalls:
 
-    Every response needs to use the 'bash' tool at least once to execute commands.
+    Every response needs to use the 'bash' tool at least once to execute a command that starts with `python` or `python3`.
 
     Call the bash tool with your command as the argument:
     - Tool: bash
-    - Arguments: {"command": "your_command_here"}
+    - Arguments: {"command": "python your_script.py"}
 
     If you want to end the task, please issue the following command: `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
     without any other command.
