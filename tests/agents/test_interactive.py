@@ -116,6 +116,7 @@ def toolcall_config():
     config_path = Path("src/minisweagent/config/mini.yaml")
     with open(config_path) as f:
         config = yaml.safe_load(f)
+    config["agent"]["python_bash_only"] = False
     return config["agent"]
 
 
@@ -1200,3 +1201,28 @@ def test_submission_enter_quits(model_factory):
     assert info["exit_status"] == "Submitted"
     assert info["submission"] == "completed\n"
     assert agent.n_calls == 1
+
+
+def test_python_bash_only_rejects_invalid_human_commands(model_factory):
+    """Test python_bash_only rejects invalid human-mode commands and allows exact submission."""
+    factory, config = model_factory
+    with mock_prompts(
+        [
+            "ls -la",
+            "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
+            "",
+        ]
+    ):
+        agent = InteractiveAgent(
+            model=factory([]),
+            env=LocalEnvironment(),
+            **{**config, "mode": "human", "python_bash_only": True},
+        )
+        info = agent.run("Reject invalid human commands")
+
+    assert info["exit_status"] == "Submitted"
+    assert info["submission"] == ""
+    assert agent.n_calls == 0
+    rejection_messages = [msg for msg in agent.messages if "Rejected command." in get_text(msg)]
+    assert len(rejection_messages) == 1
+    assert "ls -la" in get_text(rejection_messages[0])

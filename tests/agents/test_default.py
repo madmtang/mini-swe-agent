@@ -70,6 +70,7 @@ def toolcall_config():
     config_path = Path("src/minisweagent/config/mini.yaml")
     with open(config_path) as f:
         config = yaml.safe_load(f)
+    config["agent"]["python_bash_only"] = False
     return config["agent"]
 
 
@@ -423,3 +424,25 @@ def test_empty_actions_handling(model_factory):
     assert info["exit_status"] == "Submitted"
     assert info["submission"] == "done\n"
     assert agent.n_calls == 2
+
+
+def test_python_bash_only_rejects_non_python_commands(model_factory):
+    """Test python_bash_only rejects non-Python commands but still allows the exact submit command."""
+    factory, config = model_factory
+    agent = DefaultAgent(
+        model=factory(
+            [
+                ("Bad command", [{"command": "ls -la"}]),
+                ("Finish", [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]),
+            ]
+        ),
+        env=LocalEnvironment(),
+        **{**config, "python_bash_only": True},
+    )
+
+    info = agent.run("Reject non-Python commands")
+    assert info["exit_status"] == "Submitted"
+    assert info["submission"] == ""
+    rejection_messages = [msg for msg in agent.messages if "Rejected command." in get_text(msg)]
+    assert len(rejection_messages) == 1
+    assert "ls -la" in get_text(rejection_messages[0])

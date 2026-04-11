@@ -112,6 +112,7 @@ agent:
     ```
   step_limit: 0
   cost_limit: 3.
+  python_bash_only: true
   mode: confirm
 environment:
   env:

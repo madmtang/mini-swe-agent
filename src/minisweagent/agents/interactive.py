@@ -101,6 +101,7 @@ class InteractiveAgent(DefaultAgent):
         commands = [action["command"] for action in actions]
         outputs = []
         try:
+            self.validate_actions(actions)
             self._ask_confirmation_or_interrupt(commands)
             for action in actions:
                 outputs.append(self.env.execute(action))

@@ -4,6 +4,7 @@ or https://minimal-agent.com for a tutorial on the basic building principles.
 
 import json
 import logging
+import re
 import traceback
 from pathlib import Path
 
@@ -11,8 +12,11 @@ from jinja2 import StrictUndefined, Template
 from pydantic import BaseModel
 
 from minisweagent import Environment, Model, __version__
-from minisweagent.exceptions import InterruptAgentFlow, LimitsExceeded
+from minisweagent.exceptions import FormatError, InterruptAgentFlow, LimitsExceeded
 from minisweagent.utils.serialize import recursive_merge
+
+FINAL_SUBMISSION_COMMAND = "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
+_PYTHON_COMMAND_RE = re.compile(r"^python3?(?:\s|$)")
 
 
 class AgentConfig(BaseModel):
@@ -28,6 +32,8 @@ class AgentConfig(BaseModel):
     """Stop agent after exceeding (!) this cost."""
     output_path: Path | None = None
     """Save the trajectory to this path."""
+    python_bash_only: bool = False
+    """Reject bash commands unless they start with python/python3 or equal the final submission command."""
 
 
 class DefaultAgent:
@@ -116,9 +122,36 @@ class DefaultAgent:
         self.add_messages(message)
         return message
 
+    def validate_actions(self, actions: list[dict]) -> None:
+        """Validate action commands before they reach the environment."""
+        if not self.config.python_bash_only:
+            return
+        for action in actions:
+            self._validate_command(action.get("command", ""))
+
+    def _validate_command(self, command: str) -> None:
+        if not isinstance(command, str):
+            command = str(command)
+        stripped = command.strip()
+        if stripped == FINAL_SUBMISSION_COMMAND or _PYTHON_COMMAND_RE.match(stripped):
+            return
+        raise FormatError(
+            self.model.format_message(
+                role="user",
+                content=(
+                    "Rejected command. Bash commands must start with `python` or `python3`.\n"
+                    f"The only allowed non-Python command is `{FINAL_SUBMISSION_COMMAND}`, issued exactly as specified.\n\n"
+                    f"Rejected command:\n```bash\n{command}\n```"
+                ),
+                extra={"interrupt_type": "FormatError", "invalid_command": command},
+            )
+        )
+
     def execute_actions(self, message: dict) -> list[dict]:
         """Execute actions in message, add observation messages, return them."""
-        outputs = [self.env.execute(action) for action in message.get("extra", {}).get("actions", [])]
+        actions = message.get("extra", {}).get("actions", [])
+        self.validate_actions(actions)
+        outputs = [self.env.execute(action) for action in actions]
         return self.add_messages(*self.model.format_observation_messages(message, outputs, self.get_template_vars()))
 
     def serialize(self, *extra_dicts) -> dict:
