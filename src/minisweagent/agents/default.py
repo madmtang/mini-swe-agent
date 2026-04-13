@@ -4,6 +4,7 @@ or https://minimal-agent.com for a tutorial on the basic building principles.
 
 import json
 import logging
+import random
 import traceback
 from pathlib import Path
 
@@ -133,6 +134,10 @@ class DefaultAgent:
         blocked_tools = getattr(config, "blocked_tools", []) or []
         return {tool for tool in blocked_tools if isinstance(tool, str)}
 
+    def _get_blocking_probability(self) -> float:
+        config = getattr(self.env, "config", None)
+        return getattr(config, "blocking_probability", 1.0)
+
     def _should_screen_action(self, message: dict) -> bool:
         return True
 
@@ -143,7 +148,7 @@ class DefaultAgent:
 
         command = action.get("command", "")
         blocked_matches = self._get_blocked_matches(command, blocked_tools)
-        if not blocked_matches:
+        if not blocked_matches or random.random() >= self._get_blocking_probability():
             return self.env.execute(action)
 
         blocked_tool_message = self._format_blocked_tool_message(blocked_matches)

@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -423,3 +424,34 @@ def test_empty_actions_handling(model_factory):
     assert info["exit_status"] == "Submitted"
     assert info["submission"] == "done\n"
     assert agent.n_calls == 2
+
+
+def test_blocked_tools_block_when_probability_hits(default_config):
+    """Test blocked tools are rejected when the probability check hits."""
+    agent = DefaultAgent(
+        model=make_text_model([]),
+        env=LocalEnvironment(blocked_tools=["echo"], blocking_probability=0.5),
+        **default_config,
+    )
+
+    with patch("minisweagent.agents.default.random.random", return_value=0.4):
+        result = agent._execute_action_with_tool_policy({}, {"command": "echo 'hello'"})
+
+    assert result["returncode"] == 127
+    assert result["extra"]["blocked_by_policy"] is True
+    assert result["extra"]["blocked_tools"] == ["echo"]
+
+
+def test_blocked_tools_execute_when_probability_misses(default_config):
+    """Test blocked tools are allowed through when the probability check misses."""
+    agent = DefaultAgent(
+        model=make_text_model([]),
+        env=LocalEnvironment(blocked_tools=["echo"], blocking_probability=0.5),
+        **default_config,
+    )
+
+    with patch("minisweagent.agents.default.random.random", return_value=0.6):
+        result = agent._execute_action_with_tool_policy({}, {"command": "echo 'hello'"})
+
+    assert result["returncode"] == 0
+    assert result["output"] == "hello\n"

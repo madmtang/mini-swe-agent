@@ -14,6 +14,7 @@ def test_local_environment_config_defaults():
 
     assert config.cwd == ""
     assert config.env == {}
+    assert config.blocking_probability == 1.0
     assert config.timeout == 30
 
 

@@ -3,7 +3,7 @@ import platform
 import subprocess
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from minisweagent.exceptions import Submitted
 from minisweagent.utils.serialize import recursive_merge
@@ -13,6 +13,7 @@ class LocalEnvironmentConfig(BaseModel):
     cwd: str = ""
     env: dict[str, str] = {}
     blocked_tools: list[str] = []
+    blocking_probability: float = Field(default=1.0, ge=0.0, le=1.0)
     timeout: int = 30
 
 
